@@ -1,0 +1,6 @@
+boto3
+pyyaml
+requests
+psycopg2-binary
+ddtrace
+pandas

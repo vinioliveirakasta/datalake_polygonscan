@@ -1,0 +1,8 @@
+package.json
+package-lock.json
+__pycache__
+.serverless
+myenv
+venv
+.vscode
+node_modules

@@ -1,0 +1,97 @@
+service: datalake-polygonscan
+
+provider:
+  name: aws
+  region: eu-west-1
+  stage: prod
+  runtime: python3.12
+  vpc:
+    securityGroupIds:
+      - sg-003924bb9f8ccb26f
+    subnetIds:
+      - subnet-0ef9b46389815976a
+  stackTags:
+    env: datalake-${self:provider.stage}
+
+plugins:
+  - serverless-python-requirements
+  - serverless-plugin-datadog
+
+custom:
+  pythonRequirements:
+    dockerizePip: non-linux
+  datadog:
+    site: datadoghq.eu
+    apiKeySecretArn: arn:aws:secretsmanager:eu-west-1:229708718669:secret:DdApiKeySecret-Aa8myXwZbRSB-AVDRsM
+  backend_aws_id:
+    staging: "825514288646"
+    prod: "118061666185"
+  accountId:
+    prod: "118061666185"
+    staging: "825514288646"
+
+package:
+  exclude:
+    - node_modules/**
+    - venv/**
+    - .serverless/**
+    - .git/**
+    - .vscode/**
+    - config/__pycache__/**
+    - resources/__pycache__/**
+    - .DS_Store
+
+
+resources:
+  Resources:
+    LambdaExecutionRole:
+      Type: AWS::IAM::Role
+      Properties:
+        RoleName: ${self:service}-${self:provider.stage}-role
+        AssumeRolePolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Principal:
+                Service:
+                  - lambda.amazonaws.com
+                  - events.amazonaws.com
+              Action: sts:AssumeRole
+        Policies:
+          - PolicyName: root
+            PolicyDocument:
+              Version: '2012-10-17'
+              Statement:
+                - Effect: Allow
+                  Action:
+                    - secretsmanager:GetSecretValue
+                    - secretsmanager:GetRandomPassword
+                    - s3:PutObject
+                    - s3:GetObject
+                    - s3:ListBucket
+                    - s3:DeleteObject
+                    - ec2:CreateNetworkInterface
+                    - ec2:DescribeNetworkInterfaces
+                    - ec2:DeleteNetworkInterface
+                    - lambda:InvokeFunction
+                    - logs:CreateLogStream
+                    - logs:PutLogEvents
+                  Resource: "*"
+          - PolicyName: SecretsManagerAccess
+            PolicyDocument:
+              Version: '2012-10-17'
+              Statement:
+                - Effect: Allow
+                  Action:
+                    - secretsmanager:GetSecretValue
+                  Resource: arn:aws:secretsmanager:eu-west-1:229708718669:secret:prod-datalake-polygonscan-apiKey
+
+
+functions:
+  walletDataConsumer:
+    role: LambdaExecutionRole
+    handler: walletDataConsumer.handler
+    timeout: 300
+    events:
+      - eventBridge:
+          schedule: cron(0 22 ? * MON *)  # Runs weekly on Monday at 10 PM UTC
