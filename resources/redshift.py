@@ -73,6 +73,19 @@ class Redshift:
         self.s3_client.put_object(Bucket=self.s3_bucket_name, Key=s3_key, Body=csv_buffer.getvalue())
         logging.info(f"Data successfully uploaded to S3 at {s3_key}")
 
+    def truncate_table(self, tablename):
+        """
+        Truncates the specified table in Redshift.
+        """
+        truncate_sql = f"TRUNCATE {self.schema}.{tablename};"
+        logging.info(f"Truncating table {self.schema}.{tablename}")
+
+        # Connect to Redshift and execute the TRUNCATE command
+        with connect(aws_config.rs_db_name) as cursor:
+            cursor.execute(truncate_sql)
+
+        logging.info(f"Table {self.schema}.{tablename} successfully truncated.")
+
     def copy_from_s3(self, tablename, s3_key):
         """
         Executes the Redshift COPY command to load data from S3 into the specified Redshift table.
@@ -100,7 +113,7 @@ class Redshift:
 
     def load_data_to_redshift(self, df, tablename):
         """
-        Uploads the data to S3 and then loads it into Redshift using the COPY command.
+        Uploads the data to S3, truncates the Redshift table, and then loads the new data using the COPY command.
         """
         # Generate a unique S3 key based on the current timestamp
         s3_key = f"polygonscan/polygon_transactions_{int(time.time())}.csv"
@@ -108,7 +121,10 @@ class Redshift:
         # Step 1: Upload the DataFrame to S3
         self.upload_to_s3(df, s3_key)
 
-        # Step 2: Execute the COPY command to load data into Redshift from S3
+        # Step 2: Truncate the table to avoid duplicates
+        self.truncate_table(tablename)
+
+        # Step 3: Execute the COPY command to load data into Redshift from S3
         self.copy_from_s3(tablename, s3_key)
 
         logging.info(f"Data successfully loaded into Redshift table {tablename}")
